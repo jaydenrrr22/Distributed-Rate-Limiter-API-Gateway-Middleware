@@ -6,8 +6,6 @@ from fastapi import FastAPI, Request, Response, status
 from fastapi.responses import JSONResponse
 import redis.asyncio as redis
 
-app = FastAPI(title="Distrubuted Rate Limiter Gateway")
-
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
 
@@ -23,25 +21,37 @@ async def lifespan(app: FastAPI):
     yield
     await redis_client.close()
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(title="Distrubuted Rate Limiter Gateway", lifespan=lifespan)
 
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
-    client_ip = request.client.host if request.client else "Unknown"
-    key = f"rate_limit:ip:{client_ip}"
+    api_key = request.headers.get("X-API-Key")
+    auth_header = request.headers.get("Authorization")
 
+    if api_key:
+        key = f"rate_limit:apikey:{api_key}"
+        window_seconds = 60
+        max_requests = 100
+    elif auth_header:
+        key = f"rate_limit:user:{auth_header}"
+        window_seconds = 60
+        max_requests = 30
+    else:
+        client_ip = request.client.host if request.client else "Unknown"
+        key = f"rate_limit:ip:{client_ip}"
+        window_seconds = 60
+        max_requests = 5
+    
     now = time.time()
-    request_id = f"{now}:{uuid.uuid4().hex}"
-
-    window_seconds = 60
-    max_requests = 5
+    now_ms = int(now * 1000)
+    request_id = f"{now_ms}:{uuid.uuid4().hex}"
 
     try:
         res = await redis_client.evalsha(
             lua_script_sha, 
             1, 
             key, 
-            str(now), 
+            str(now_ms), 
             str(window_seconds), 
             str(max_requests),
             request_id
