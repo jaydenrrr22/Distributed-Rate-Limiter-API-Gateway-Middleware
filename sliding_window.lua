@@ -1,10 +1,11 @@
 local key = KEYS[1]
-local now = tonumber(ARGV[1]) or 0
+local now_ms = tonumber(ARGV[1]) or 0
 local window = tonumber(ARGV[2]) or 60
 local limit = tonumber(ARGV[3]) or 5
 local request_id = ARGV[4]
 
-local clear_before = now - window
+local window_ms = window_sec * 1000
+local clear_before = now_ms - window_ms
 
 -- removing the timestamps older than the current window
 redis.call('ZREMRANGEBYSCORE', key, '-inf', clear_before)
