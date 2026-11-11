@@ -1,6 +1,6 @@
 local key = KEYS[1]
 local now_ms = tonumber(ARGV[1]) or 0
-local window = tonumber(ARGV[2]) or 60
+local window_sec = tonumber(ARGV[2]) or 60
 local limit = tonumber(ARGV[3]) or 5
 local request_id = ARGV[4]
 
@@ -14,7 +14,7 @@ redis.call('ZREMRANGEBYSCORE', key, '-inf', clear_before)
 local req_count = redis.call('ZCARD', key)
 
 if req_count < limit then
-    redis.call('ZADD', key, now, request_id)
+    redis.call('ZADD', key, now_ms, request_id)
     redis.call('EXPIRE', key, math.ceil(window))
     return {1, limit - req_count - 1}
 else

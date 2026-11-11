@@ -6,8 +6,6 @@ from fastapi import FastAPI, Request, Response, status
 from fastapi.responses import JSONResponse
 import redis.asyncio as redis
 
-app = FastAPI(title="Distrubuted Rate Limiter Gateway")
-
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
 
@@ -23,7 +21,7 @@ async def lifespan(app: FastAPI):
     yield
     await redis_client.close()
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(title="Distrubuted Rate Limiter Gateway", lifespan=lifespan)
 
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
@@ -35,7 +33,7 @@ async def rate_limit_middleware(request: Request, call_next):
         window_seconds = 60
         max_requests = 100
     elif auth_header:
-        key = f"rate_limit:apikey:{auth_header}"
+        key = f"rate_limit:user:{auth_header}"
         window_seconds = 60
         max_requests = 30
     else:
