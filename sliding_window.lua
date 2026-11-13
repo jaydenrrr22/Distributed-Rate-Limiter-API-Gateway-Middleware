@@ -15,7 +15,7 @@ local req_count = redis.call('ZCARD', key)
 
 if req_count < limit then
     redis.call('ZADD', key, now_ms, request_id)
-    redis.call('EXPIRE', key, math.ceil(window))
+    redis.call('EXPIRE', key, math.ceil(window_sec))
     return {1, limit - req_count - 1}
 else
     return {0, 0}

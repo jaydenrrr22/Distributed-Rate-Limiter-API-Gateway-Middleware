@@ -12,14 +12,18 @@ REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
 redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
 lua_script_sha = None
 
+async def get_lua_sha():
+    global lua_script_sha
+    if lua_script_sha is None:
+        with open("sliding_window.lua", "r") as f:
+            lua_script_sha = await redis_client.script_load(f.read())
+    return lua_script_sha
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global lua_script_sha
-    with open("sliding_window.lua", "r") as f:
-        script_content = f.read()
-    lua_script_sha = await redis_client.script_load(script_content)
+    await lua_script_sha
     yield
-    await redis_client.close()
+    await redis_client.aclose()
 
 app = FastAPI(title="Distrubuted Rate Limiter Gateway", lifespan=lifespan)
 
@@ -47,6 +51,7 @@ async def rate_limit_middleware(request: Request, call_next):
     request_id = f"{now_ms}:{uuid.uuid4().hex}"
 
     try:
+        sha = await get_lua_sha()
         res = await redis_client.evalsha(
             lua_script_sha, 
             1, 
@@ -76,6 +81,7 @@ async def rate_limit_middleware(request: Request, call_next):
     response.headers["X-RateLimit-Limit"] = str(max_requests)
     response.headers["X-RateLimit-Remaining"] = str(remaining)
     return response
+
 
 @app.get("/api/data")
 async def get_data():
